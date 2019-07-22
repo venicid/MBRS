@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    {# 导入bootstrap和jquery #}
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css">
+    <script src="/static/js/jquery-1.12.4.min.js"></script>
+    <script src="/static/js/jquery.cookie.js"></script>
+    {# 导入datetimepicker #}
+    <script src="/static/datetimepicker/bootstrap-datetimepicker.min.js"></script>
+    <script src="/static/datetimepicker//bootstrap-datetimepicker.zh-CN.js"></script>
+    <style type="text/css">
+        .active{
+            background-color: green !important;
+            color: white;
+        }
+        .another_active{
+            background-color: blue;
+            color: white;
+        }
+
+        .td_active{
+            background-color: #2aabd2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Hi {{ request.user.username }}</h2>
+<h3>会议室预定</h3>
+
+
+{# 日历插件 #}
+<div class="calender pull-right">
+      <div class='input-group' style="width: 230px;">
+            <input type='text' class="form-control" id='datetimepicker11' placeholder="请选择日期"/>
+            <span class="input-group-addon">
+                <span class="glyphicon glyphicon-calendar">
+                </span>
+            </span>
+
+      </div>
+</div>
+
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>会议室/时间</th>
+            {# 循环会议室时间 #}
+                {# <th>8:00</th> #}
+                {# <th>9:00</th> #}
+                {# <th>10:00</th> #}
+            {% for time_choice in time_choices %}
+                <th>{{ time_choice.1 }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+
+    <tbody>
+    {# 后端渲染 #}
+        {{ htmls|safe }}
+    </tbody>
+
+</table>
+
+
+<button class="btn btn-success pull-right keep">保存</button>
+
+<script>
+
+     // 日期格式化方法
+    Date.prototype.yuan = function (fmt) { //author: meizz
+        var o = {
+            "M+": this.getMonth() + 1, //月份
+            "d+": this.getDate(), //日
+            "h+": this.getHours(), //小时
+            "m+": this.getMinutes(), //分
+            "s+": this.getSeconds(), //秒
+            "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+            "S": this.getMilliseconds() //毫秒
+        };
+        if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+        for (var k in o)
+            if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+        return fmt;
+    };
+
+
+    //构建提交数据
+    var POST_DATA={
+        //"ADD":{1:[4,5],2:[4]},   // 键 room_id 1
+        //"DEL":{3:[9,10]},       // 值 time_id [4,5]
+        "ADD":{},
+        "DEL":{},
+    };
+
+    //为td绑定单击事件
+    function BindTd() {
+        $(".item").click(function () {
+            //alert(123);
+            //alert($(this).attr("room_id"));
+
+            var room_id = $(this).attr("room_id");
+            var time_id = $(this).attr("time_id");
+
+            //取消预订
+            if($(this).hasClass("active")){
+                $(this).removeClass("active").empty();
+
+                if(POST_DATA.DEL[room_id]){
+                    POST_DATA.DEL[room_id].push(time_id)  //后续直接追加
+                }
+                else{
+                    POST_DATA.DEL[room_id]=[time_id]    //第一次del中添加data
+                }
+
+            }
+
+            // 临时取消预订
+            else if($(this).hasClass("td_active")){
+                $(this).removeClass("td_active");
+
+                //按照指定元素删除？？？
+                // POST_DATA.ADD[room_id].remove(time_id) // remove无定义
+                // POST_DATA.ADD[room_id].pop() // 删除最后一个
+                POST_DATA.ADD[room_id].splice(POST_DATA.ADD[room_id].indexOf(time_id),1)
+
+
+            }
+            else{
+                //点空白处
+                $(this).addClass("td_active");
+
+                //增加预定
+                if (POST_DATA.ADD[room_id]){
+                    POST_DATA.ADD[room_id].push(time_id)  //后续直接添加
+                }else{
+                    POST_DATA.ADD[room_id]=[time_id,]  //第一次直接赋值
+                }
+            }
+        })
+    }
+
+    BindTd();
+
+
+        // 日期
+    if (location.search.slice(11)){
+        CHOOSE_DATE = location.search.slice(11)
+    }
+    else {
+        CHOOSE_DATE = new Date().yuan('yyyy-MM-dd');
+    }
+
+    //保存按钮，发送ajax
+    $('.keep').click(function () {
+
+        //alert(111111)
+
+        $.ajax({
+            url:"/book/",
+            type:"post",
+            headers:{"X-CSRFToken":$.cookie('csrftoken')},
+            data:{
+                choose_date:CHOOSE_DATE,
+                post_data:JSON.stringify(POST_DATA)
+            },
+            dataType:"json",
+            success:function (data) {
+                console.log(data);
+                if(data.state){
+                    //预订成功
+                    location.href=""
+                }
+                else{
+                    alert('该Room已经被预定了');
+                    location.href='';
+                }
+            }
+    })
+
+    });
+
+
+
+    // 日历插件
+    $('#datetimepicker11').datetimepicker({
+        minView: "month",
+        language: "zh-CN",
+        sideBySide: true,
+        format: 'yyyy-mm-dd',
+        startDate: new Date(),
+        bootcssVer: 3,
+        autoclose: true
+    }).on('changeDate', book_query);
+
+
+    function book_query(e) {
+        CHOOSE_DATE=e.date.yuan("yyyy-MM-dd");
+        location.href="/index/?book_date="+CHOOSE_DATE;
+    }
+
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
